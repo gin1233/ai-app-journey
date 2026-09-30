@@ -54,3 +54,5 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned 没有反应 = 成功了
 
 ## 还没搞懂的地方
 暂无
+
+09302026
