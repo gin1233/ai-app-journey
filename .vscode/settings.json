@@ -1,0 +1,16 @@
+{
+  // 项目统一使用 .venv 里的 Python，避免误用全局 Python
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+
+  // 新开终端时自动激活虚拟环境
+  "python.terminal.activateEnvironment": true,
+
+  // 文件统一用 UTF-8，防止中文乱码
+  "files.encoding": "utf8",
+
+  // 保存时自动去掉行尾空格
+  "files.trimTrailingWhitespace": true,
+
+  // 在 100 字符处画一条参考线，提醒别写太长
+  "editor.rulers": [100]
+}
