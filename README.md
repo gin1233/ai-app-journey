@@ -60,4 +60,6 @@
 
 - [Day 01 · 环境搭建](notes/day01.md)
 - [Day 02 · Git 基础](notes/day02.md)
+- [Day 03 · GitHub 远程仓库](notes/day03.md)
+- [Day 04 · Python 工程化基础](notes/day04.md)
 - [Git 速查手册](notes/git-cheatsheet.md)
