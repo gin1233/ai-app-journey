@@ -12,11 +12,12 @@
 | | GET | POST |
 |---|---|---|
 | 干什么 | 读取数据 | 上传数据 |
-| 数据放在哪 | 内存 | JSON |
-| 有副作用吗 | | |
+| 数据放在哪 | 网址URL | 请求体（body |
+| 有副作用吗 | 你查一百次余额，钱一分没变 | 每转一次账，余额都变了 |
 | 类比 | 查看账户 | 实际转账 |
 
 **我发送的数据长什么样（POST 的请求体）**：
+请求体是信纸上的内容 def create_note(note: Note) 里那个 note，就是请求体
 
 ## Pydantic 模型是什么
 
@@ -30,8 +31,8 @@ class Note(BaseModel):
 **用自己的话解释这三行**：
 
 - `class Note(BaseModel)`： 创建新的类型 区别去python自带的int，str... BaseModel是pydantic中的notes模板工具调用
-- `title: str`： 基于basemodel针对于这个class新加的title
-- `content: str = ""`： 基于basemodel针对于这个class新加的content
+- `title: str`： 基于basemodel针对于这个class新加的title             没有默认值 → 必填	★ 必填栏
+- `content: str = ""`： 基于basemodel针对于这个class新加的content    有默认值 → 选填	○ 可不填
 
 **登记表类比**（哪些是必填、哪些是选填）：
 
@@ -46,6 +47,9 @@ def create_note(note: Note):   # 数据从哪来？
 
 **我的理解**：
 （提示：看参数的类型是什么 —— 基本类型 vs 模型类）
+
+def say_hello(name: str):      # str 是基本类型 → 从网址拿
+def create_note(note: Note):   # Note 是模型类 → 从请求体拿
 
 ## 自动校验：三种情况
 
@@ -129,7 +133,33 @@ notes: list[Note] = [] 存在这里
 ## 还没搞懂的地方
 
  - `422` 和 `404` 有什么区别？
-
+| 码 | 名字 | 什么时候出现 | 类比 |
+|---|---|---|---|
+| **404** | Not Found | **地址不存在** | 你去了一个**根本没有的房间号** |访问 http://127.0.0.1:8000/notess        ← 多打了一个 s
+| **422** | Unprocessable Entity | **地址对，但你发的数据不合格** | 房间**有**，但你的**证件不合格**，进不去 |
+| 码 | 含义 | 什么时候 |
+|---|---|---|
+| **200** | OK | 成功 |
+| **404** | Not Found | **地址不存在** |
+| **422** | 数据不合法 | **地址对，内容不合格** |
+| **500** | 服务器内部错误 | **你的代码崩了**（不是用户的错） |
  - 为什么 `notes.append(note)` 不用写 `global`？）
- 不懂你想问什么
+有=要加global call 一下 global count
 
+## 坑
+class Note(BaseModel):
+    """一条笔记。"""
+
+    title: str = Field(min_length=1, max_length=100)
+    content: str = Field(default="", max_length=5000)
+
+    @field_validator("title")
+    @classmethod
+    def title_not_blank(cls, v: str) -> str:
+        """去掉首尾空格；如果剩下是空的，就拒绝。"""
+        v = v.strip()
+        if not v:
+            raise ValueError("标题不能为空或只有空格")
+        return v
+
+不加Field 限制 会让""通过  不加field——validator会让"  "通过
