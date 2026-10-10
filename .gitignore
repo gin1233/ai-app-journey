@@ -30,3 +30,5 @@ Thumbs.db
 *.log
 data/
 *.sqlite3
+# 本地数据库文件
+*.db
