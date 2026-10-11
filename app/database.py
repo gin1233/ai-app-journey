@@ -5,8 +5,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_config
 
@@ -24,3 +26,15 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 class Base(DeclarativeBase):
     """所有数据表都要继承它。"""
+
+
+def get_db() -> Generator[Session, None, None]:
+    """FastAPI 依赖：每个请求给一个会话，用完自动关闭。"""
+    with SessionLocal() as db:
+        yield db
+
+    # db = SessionLocal()
+    # try:
+    #     yield db          # 把会话交给接口函数
+    # finally:
+    #     db.close()        # 无论成功还是报错，一定关闭

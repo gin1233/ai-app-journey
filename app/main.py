@@ -1,12 +1,12 @@
 """FastAPI 应用入口。"""
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy.orm import Session
 
-from app.database import Base, SessionLocal, engine
+from app.database import Base, engine, get_db
 from app.models import Note
 
-# 建表：表不存在就创建，已存在就跳过
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
@@ -42,22 +42,34 @@ def read_root():
     return {"message": "Hello, AI 应用工程师"}
 
 
-@app.get("/hello/{name}")
-def say_hello(name: str):
-    return {"message": f"你好，{name}！"}
-
-
 @app.get("/notes", response_model=list[NoteRead])
-def list_notes():
-    with SessionLocal() as db:
-        return db.query(Note).all()
+def list_notes(db: Session = Depends(get_db)):
+    return db.query(Note).all()
+
+
+@app.get("/notes/{note_id}", response_model=NoteRead)
+def get_note(note_id: int, db: Session = Depends(get_db)):
+    note = db.query(Note).filter(Note.id == note_id).first()
+    if note is None:
+        raise HTTPException(status_code=404, detail="笔记不存在")
+    return note
 
 
 @app.post("/notes", response_model=NoteRead)
-def create_note(payload: NoteCreate):
-    with SessionLocal() as db:
-        note = Note(title=payload.title, content=payload.content)
-        db.add(note)          # 放进会话（还在排队）
-        db.commit()           # 提交（真正写进数据库）
-        db.refresh(note)      # 读回最新状态，拿到自动生成的 id
-        return note
+def create_note(payload: NoteCreate, db: Session = Depends(get_db)):
+    note = Note(title=payload.title, content=payload.content)
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+    return note
+
+
+@app.delete("/notes/{note_id}")
+def delete_note(note_id: int, db: Session = Depends(get_db)):
+    note = db.query(Note).filter(Note.id == note_id).first()
+    if note is None:
+        raise HTTPException(status_code=404, detail="笔记不存在")
+
+    db.delete(note)
+    db.commit()
+    return {"message": "已删除", "id": note_id}
