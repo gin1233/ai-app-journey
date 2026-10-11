@@ -17,6 +17,42 @@
 - **用自己的话写的笔记** —— 不是复制粘贴的
 - **真实踩过的坑** —— 报错原文 + 原因分析 + 解决方案
 
+## 当前能力
+
+| 领域 | 具体能力 |
+|---|---|
+| 环境 | 虚拟环境、依赖隔离、配置与密钥分离（`.env`） |
+| 工程化 | Python 包结构、模块导入、依赖清单管理 |
+| 版本控制 | Git 三区域模型、提交规范、远程协作 |
+| Web 后端 | FastAPI 路由、Pydantic 数据校验、依赖注入 |
+| 数据库 | SQLAlchemy ORM、PostgreSQL、Docker Compose |
+| 排障 | Docker / WSL2 网络问题定位 |
+
+## 已实现的接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/` | 健康检查 |
+| GET | `/notes` | 查询全部笔记 |
+| GET | `/notes/{id}` | 查询单条笔记（不存在返回 404） |
+| POST | `/notes` | 新增笔记（自动数据校验） |
+| DELETE | `/notes/{id}` | 删除笔记 |
+
+> 交互式文档：启动服务后访问 `/docs`
+
+## 技术栈
+
+| 类别 | 选型 |
+|---|---|
+| 语言 | Python 3.14 |
+| Web 框架 | FastAPI |
+| ASGI 服务器 | Uvicorn |
+| 数据校验 | Pydantic 2 |
+| ORM | SQLAlchemy 2 |
+| 数据库 | PostgreSQL 17（Docker Compose 管理） |
+| 配置管理 | python-dotenv |
+| 终端输出 | Rich |
+
 ## 学习进度
 
 | 阶段 | 内容 | 状态 |
@@ -24,37 +60,62 @@
 | Day 01 | 环境搭建、虚拟环境、项目结构 | 完成 |
 | Day 02 | Git 版本控制基础 | 完成 |
 | Day 03 | 连接 GitHub 远程仓库 | 完成 |
-| Day 04 | Python 工程化基础 | 进行中 |
-| Day 05+ | FastAPI / 数据库 / LLM 接入 / RAG / Agent | 待开始 |
+| Day 04 | Python 工程化基础 | 完成 |
+| Day 05 | FastAPI 入门：路由、装饰器、自动文档 | 完成 |
+| Day 06 | 接收数据、Pydantic 自动校验 | 完成 |
+| Day 07 | PostgreSQL + SQLAlchemy + Docker Compose | 完成 |
+| Day 08 | 查询单条、删除、依赖注入 | 完成 |
+| Day 09 | APIRouter 拆分模块、更新接口（PUT） | 进行中 |
+| Day 10+ | LLM API 接入 / 流式输出 / RAG / Agent | 待开始 |
 
 ## 目录结构
 
     ai-app-journey/
-    ├── day01/                  Day 01 练习：环境自检脚本
-    ├── notes/
-    │   ├── day01.md            Day 01 学习笔记
-    │   ├── day02.md            Day 02 学习笔记
-    │   └── git-cheatsheet.md   Git 速查手册
-    ├── .gitattributes          统一换行符规则
-    ├── .gitignore              Git 忽略规则
-    └── README.md               本文件
+    ├── app/                        应用代码
+    │   ├── __init__.py
+    │   ├── config.py               配置读取（从 .env）
+    │   ├── database.py             引擎、会话工厂、依赖注入
+    │   ├── env_check.py            环境自检工具
+    │   ├── main.py                 FastAPI 应用入口
+    │   └── models.py               数据表定义
+    ├── day01/                      Day 01 练习：环境自检脚本
+    ├── notes/                      学习笔记
+    │   ├── day01.md ~ day08.md
+    │   ├── day06.5.md              Docker 排障记录
+    │   └── git-cheatsheet.md       Git 速查手册
+    ├── docker-compose.yml          PostgreSQL 容器配置
+    ├── requirements.txt            Python 依赖清单
+    ├── .env.example                配置模板（真实值在 .env，不入库）
+    ├── .gitattributes              统一换行符规则
+    ├── .gitignore                  Git 忽略规则
+    └── README.md                   本文件
 
 ## 环境要求
 
 - Python >= 3.12（当前使用 3.14.7）
 - Git >= 2.40
+- Docker Desktop（提供 PostgreSQL）
 - VS Code
 
 ## 快速开始
 
-    # 1. 创建虚拟环境
+    # 1. 创建并激活虚拟环境
     python -m venv .venv
-
-    # 2. 激活虚拟环境（PowerShell）
     .\.venv\Scripts\Activate.ps1
 
-    # 3. 运行环境自检
-    python day01\check_env.py
+    # 2. 安装依赖
+    pip install -r requirements.txt
+
+    # 3. 准备配置（把模板复制成真实配置）
+    Copy-Item .env.example .env
+
+    # 4. 启动数据库
+    docker compose up -d
+
+    # 5. 启动服务
+    uvicorn app.main:app --reload
+
+访问 http://127.0.0.1:8000/docs 查看交互式 API 文档。
 
 ## 笔记索引
 
@@ -62,4 +123,9 @@
 - [Day 02 · Git 基础](notes/day02.md)
 - [Day 03 · GitHub 远程仓库](notes/day03.md)
 - [Day 04 · Python 工程化基础](notes/day04.md)
+- [Day 05 · FastAPI 入门](notes/day05.md)
+- [Day 06 · 接收数据与自动校验](notes/day06.md)
+- [Day 06.5 · Docker 排障记录](notes/day06.5.md)
+- [Day 07 · 接入 PostgreSQL](notes/day07.md)
+- [Day 08 · 查询单条、删除与依赖注入](notes/day08.md)
 - [Git 速查手册](notes/git-cheatsheet.md)
