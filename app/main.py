@@ -7,9 +7,8 @@
 """
 
 from fastapi import FastAPI
-
 from app.database import Base, engine
-from app.routers import notes
+from app.routers import ai, notes
 
 Base.metadata.create_all(bind=engine)
 
@@ -17,7 +16,7 @@ app = FastAPI(title="AI 应用学习项目")
 
 # 把 notes 这个"分机"接到总机上
 app.include_router(notes.router)
-
+app.include_router(ai.router)
 
 @app.get("/")
 def read_root():
