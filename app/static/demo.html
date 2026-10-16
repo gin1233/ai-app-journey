@@ -16,20 +16,26 @@
   <textarea id="input" rows="3">用五句话介绍 Python</textarea>
   <button id="btn">发送</button>
   <div id="out"></div>
-
+  <hr style="margin: 32px 0">
+  <h2>AI 总结笔记</h2>
+  <input id="noteId" type="number" value="2" min="1">
+  <button id="sumBtn">总结</button>
+  <div id="sumOut" style="white-space: pre-wrap; border: 1px solid #ddd; border-radius: 6px;
+  padding: 12px; min-height: 80px; background: #fafafa; line-height: 1.7;"></div>
 <script>
-const out = document.getElementById("out");
-const btn = document.getElementById("btn");
-
-btn.onclick = async () => {
-  out.textContent = "";
-  btn.disabled = true;
-
-  const resp = await fetch("/ai/chat/stream", {
+/** 发一个请求，把 SSE 流里的文字一段段交给 onPiece 处理。 */
+async function readSSE(url, body, onPiece) {
+  const resp = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: document.getElementById("input").value }),
+    body: JSON.stringify(body),
   });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    onPiece(`\n[错误 ${resp.status}] ${err.detail ?? "未知错误"}`);
+    return;
+  }
 
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
@@ -40,18 +46,42 @@ btn.onclick = async () => {
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-
     const lines = buffer.split("\n");
-    buffer = lines.pop();          // 最后一段可能被切断，留到下一轮再拼
+    buffer = lines.pop();
 
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
       const payload = line.slice(6);
-      if (payload === "[DONE]") { btn.disabled = false; return; }
-      out.textContent += JSON.parse(payload);
+      if (payload === "[DONE]") return;
+      onPiece(JSON.parse(payload));
     }
   }
+}
+
+// ---- 对话 ----
+const out = document.getElementById("out");
+const btn = document.getElementById("btn");
+
+btn.onclick = async () => {
+  out.textContent = "";
+  btn.disabled = true;
+  await readSSE("/ai/chat/stream",
+    { prompt: document.getElementById("input").value },
+    s => { out.textContent += s; });
   btn.disabled = false;
+};
+
+// ---- 总结笔记 ----
+const sumOut = document.getElementById("sumOut");
+const sumBtn = document.getElementById("sumBtn");
+
+sumBtn.onclick = async () => {
+  sumOut.textContent = "";
+  sumBtn.disabled = true;
+  const id = document.getElementById("noteId").value;
+  await readSSE(`/notes/${id}/summarize`, {},
+    s => { sumOut.textContent += s; });
+  sumBtn.disabled = false;
 };
 </script>
 </body>

@@ -7,6 +7,7 @@ from app.services.llm import chat
 from collections.abc import Iterator
 from fastapi.responses import StreamingResponse
 from app.services.llm import chat, stream_chat
+from app.utils.sse import to_sse
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -44,18 +45,6 @@ def ai_chat(payload: ChatRequest):
         raise HTTPException(status_code=502, detail=f"大模型服务出错: {e}")
 
     return ChatResponse(reply=reply)
-
-
-def to_sse(pieces: Iterator[str]) -> Iterator[str]:
-    """把纯文本片段包装成 SSE 格式。
-
-    为什么用 json.dumps？
-        因为模型输出里可能有换行符。SSE 协议里「换行 = 消息分隔符」，
-        不转义的话，一条消息会被切成两条。
-    """
-    for piece in pieces:
-        yield f"data: {json.dumps(piece, ensure_ascii=False)}\n\n"
-    yield "data: [DONE]\n\n"
 
 
 @router.post("/chat/stream")

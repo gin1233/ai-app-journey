@@ -2,10 +2,12 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
+from fastapi.responses import StreamingResponse
 from app.database import get_db
 from app.models import Note
 from app.schemas import NoteCreate, NoteRead, NoteUpdate
+from app.services.llm import stream_summarize
+from app.utils.sse import to_sse
 
 # prefix: 这个 router 下所有路径都自动加上 /notes
 # tags:   在 /docs 文档里给这组接口分组
@@ -58,3 +60,22 @@ def delete_note(note_id: int, db: Session = Depends(get_db)):
     db.delete(note)
     db.commit()
     return {"message": "已删除", "id": note_id}
+
+
+@router.post("/{note_id}/summarize")
+def summarize_note(note_id: int, db: Session = Depends(get_db)):
+    """用 AI 总结这条笔记（流式返回）。"""
+    # ───── 第一步：取数（数据库的活，在这里干完）─────
+    note = db.query(Note).filter(Note.id == note_id).first()
+    if note is None:
+        raise HTTPException(status_code=404, detail="笔记不存在")
+
+    title = note.title
+    content = note.content
+
+    # ───── 第二步：推流（跟数据库无关了）─────
+    return StreamingResponse(
+        to_sse(stream_summarize(title, content)),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
