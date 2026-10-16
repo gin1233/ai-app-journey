@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>流式输出演示</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+  textarea { width: 100%; font-size: 15px; padding: 8px; box-sizing: border-box; }
+  button { padding: 8px 20px; font-size: 15px; margin: 8px 0; cursor: pointer; }
+  #out { white-space: pre-wrap; border: 1px solid #ddd; border-radius: 6px;
+         padding: 12px; min-height: 120px; background: #fafafa; line-height: 1.7; }
+</style>
+</head>
+<body>
+  <h2>流式输出演示</h2>
+  <textarea id="input" rows="3">用五句话介绍 Python</textarea>
+  <button id="btn">发送</button>
+  <div id="out"></div>
+
+<script>
+const out = document.getElementById("out");
+const btn = document.getElementById("btn");
+
+btn.onclick = async () => {
+  out.textContent = "";
+  btn.disabled = true;
+
+  const resp = await fetch("/ai/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt: document.getElementById("input").value }),
+  });
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop();          // 最后一段可能被切断，留到下一轮再拼
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6);
+      if (payload === "[DONE]") { btn.disabled = false; return; }
+      out.textContent += JSON.parse(payload);
+    }
+  }
+  btn.disabled = false;
+};
+</script>
+</body>
+</html>

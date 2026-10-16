@@ -10,29 +10,7 @@ from __future__ import annotations
 from openai import OpenAI
 from app.config import get_config
 from functools import lru_cache
-
-# # 模块级变量，用来缓存客户端（只创建一次，反复复用）
-# _client: OpenAI | None = None
-
-
-# def get_client() -> OpenAI:
-#     """创建（或复用）大模型客户端。
-
-#     ⚠️ 用 global 是因为要给模块级变量 _client 重新赋值。
-#        这正好是 Day 06 记的那条规则：改"标签指向哪个盒子"要用 global。
-#     """
-#     global _client
-
-#     if _client is None:
-#         api_key = get_config("LLM_API_KEY")
-#         if not api_key:
-#             raise RuntimeError("没有配置 LLM_API_KEY，请检查 .env")
-
-#         _client = OpenAI(
-#             api_key=api_key,
-#             base_url=get_config("LLM_BASE_URL") or None,
-#         )
-#     return _client
+from collections.abc import Iterator
 
 @lru_cache(maxsize=1)
 def get_client() -> OpenAI:
@@ -60,3 +38,30 @@ def chat(prompt: str, system: str = "你是一个乐于助人的助手。") -> s
         ],
     )
     return response.choices[0].message.content or ""
+
+
+def stream_chat(
+    prompt: str,
+    system: str = "你是一个乐于助人的助手。",
+) -> Iterator[str]:
+    """流式调用：一段一段地产出模型的输出。
+
+    ⚠️ 这里 yield 的是「纯文本片段」，不是 HTTP 格式。
+       怎么包装成 SSE 是接口层的事 —— 服务层不该知道 HTTP 长什么样。
+    """
+    client = get_client()
+    model = get_config("LLM_MODEL", "deepseek-chat")
+
+    stream = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        stream=True,          # ← 和 chat() 唯一的区别
+    )
+
+    for chunk in stream:
+        piece = chunk.choices[0].delta.content
+        if piece:             # 有些 chunk 的 content 是 None，跳过
+            yield piece
