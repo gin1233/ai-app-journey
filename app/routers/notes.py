@@ -1,6 +1,7 @@
 """笔记相关的接口。"""
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from fastapi.responses import StreamingResponse
 from app.database import get_db
@@ -16,12 +17,12 @@ router = APIRouter(prefix="/notes", tags=["笔记"])
 
 @router.get("", response_model=list[NoteRead])
 def list_notes(db: Session = Depends(get_db)):
-    return db.query(Note).all()
+    return db.scalars(select(Note)).all()
 
 
 @router.get("/{note_id}", response_model=NoteRead)
 def get_note(note_id: int, db: Session = Depends(get_db)):
-    note = db.query(Note).filter(Note.id == note_id).first()
+    note = db.get(Note, note_id)
     if note is None:
         raise HTTPException(status_code=404, detail="笔记不存在")
     return note
@@ -38,7 +39,7 @@ def create_note(payload: NoteCreate, db: Session = Depends(get_db)):
 
 @router.patch("/{note_id}", response_model=NoteRead)
 def update_note(note_id: int, payload: NoteUpdate, db: Session = Depends(get_db)):
-    note = db.query(Note).filter(Note.id == note_id).first()
+    note = db.get(Note, note_id)
     if note is None:
         raise HTTPException(status_code=404, detail="笔记不存在")
 
@@ -53,7 +54,7 @@ def update_note(note_id: int, payload: NoteUpdate, db: Session = Depends(get_db)
 
 @router.delete("/{note_id}")
 def delete_note(note_id: int, db: Session = Depends(get_db)):
-    note = db.query(Note).filter(Note.id == note_id).first()
+    note = db.get(Note, note_id)
     if note is None:
         raise HTTPException(status_code=404, detail="笔记不存在")
 
@@ -66,7 +67,7 @@ def delete_note(note_id: int, db: Session = Depends(get_db)):
 def summarize_note(note_id: int, db: Session = Depends(get_db)):
     """用 AI 总结这条笔记（流式返回）。"""
     # ───── 第一步：取数（数据库的活，在这里干完）─────
-    note = db.query(Note).filter(Note.id == note_id).first()
+    note = db.get(Note, note_id)
     if note is None:
         raise HTTPException(status_code=404, detail="笔记不存在")
 

@@ -8,7 +8,7 @@
 
 from fastapi import FastAPI
 from app.database import Base, engine
-from app.routers import ai, notes
+from app.routers import ai, notes, jobs
 from fastapi.staticfiles import StaticFiles
 
 
@@ -20,6 +20,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 # 把 notes 这个"分机"接到总机上
 app.include_router(notes.router)
 app.include_router(ai.router)
+app.include_router(jobs.router)
 
 
 @app.get("/")
