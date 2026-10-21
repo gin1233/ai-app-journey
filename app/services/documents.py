@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -60,3 +61,38 @@ def split_text(
         start = end - overlap          # ← 往回退一点，形成重叠
 
     return chunks
+
+
+def clean_text(text: str) -> str:
+    """清掉无法编码成 UTF-8 的字符。
+
+    为什么需要？
+        PDF 的字体映射偶尔会吐出「孤立代理字符」
+        （U+D800~U+DFFF，比如 \\ud83d）。
+        这种字符在 UTF-8 里是非法的，存进数据库会报
+        UnicodeEncodeError。
+    """
+    return text.encode("utf-8", errors="ignore").decode("utf-8")
+
+
+
+def extract_text_from_bytes(content: bytes, filename: str) -> str:
+    suffix = Path(filename).suffix.lower()
+
+    if suffix in (".txt", ".md"):
+        text = content.decode("utf-8")
+    elif suffix == ".pdf":
+        reader = PdfReader(BytesIO(content))
+        pages = [page.extract_text() or "" for page in reader.pages]
+        text = "\n\n".join(pages)
+    else:
+        raise ValueError(f"不支持的文件类型: {suffix}")
+
+    return clean_text(text)      # ← 所有出口统一清洗
+
+
+def extract_text(path: Path) -> str:
+    """便捷函数：从磁盘上的文件提取文字。"""
+    return extract_text_from_bytes(path.read_bytes(), path.name)
+
+

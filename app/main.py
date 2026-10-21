@@ -8,7 +8,7 @@
 
 from fastapi import FastAPI
 from app.database import Base, engine
-from app.routers import ai, notes, jobs
+from app.routers import ai, documents, notes, jobs
 from fastapi.staticfiles import StaticFiles
 
 
@@ -21,7 +21,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(notes.router)
 app.include_router(ai.router)
 app.include_router(jobs.router)
-
+app.include_router(documents.router)
 
 @app.get("/")
 def read_root():
