@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
+from pgvector.sqlalchemy import Vector
 
 from app.database import Base
 
@@ -65,3 +66,6 @@ class DocumentChunk(Base):
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), index=True)
     chunk_index: Mapped[int] = mapped_column()
     content: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(512), nullable=True)
+
+
