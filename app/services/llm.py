@@ -95,3 +95,25 @@ def stream_summarize(title: str, content: str) -> Iterator[str]:
     )
     # yield from = 把另一个生成器的产出，逐个转发出去
     yield from stream_chat(prompt, system=SUMMARIZE_SYSTEM)
+
+
+@lru_cache(maxsize=1)
+def get_judge_client() -> OpenAI:
+    """裁判专用的客户端 —— 和生成用的完全分开。"""
+    api_key = get_config("JUDGE_API_KEY") or get_config("LLM_API_KEY")
+    base_url = get_config("JUDGE_BASE_URL") or get_config("LLM_BASE_URL")
+    return OpenAI(api_key=api_key, base_url=base_url or None)
+
+
+def judge_chat(prompt: str, system: str = "") -> str:
+    """用裁判模型对话。"""
+    client = get_judge_client()
+    model = get_config("JUDGE_MODEL") or get_config("LLM_MODEL", "deepseek-chat")
+
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    resp = client.chat.completions.create(model=model, messages=messages)
+    return resp.choices[0].message.content or ""
