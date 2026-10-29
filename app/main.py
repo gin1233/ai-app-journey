@@ -8,7 +8,7 @@
 
 from fastapi import FastAPI
 from app.database import Base, engine
-from app.routers import ai, documents, notes, jobs, rag
+from app.routers import ai, documents, notes, jobs, rag, agent
 from fastapi.staticfiles import StaticFiles
 
 
@@ -23,6 +23,7 @@ app.include_router(ai.router)
 app.include_router(jobs.router)
 app.include_router(documents.router)
 app.include_router(rag.router)
+app.include_router(agent.router)
 
 @app.get("/")
 def read_root():
