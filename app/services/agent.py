@@ -2,6 +2,10 @@
 
 核心是一个「循环」：
     模型说要调工具 → 我们执行 → 把结果还给它 → 它再决定下一步
+
+Day 22 新增：
+    写工具（create_note）不再直接执行，
+    而是返回 needs_confirm + action_id，等用户确认后再执行。
 """
 
 from __future__ import annotations
@@ -13,8 +17,12 @@ from sqlalchemy.orm import Session
 from app.models import Note
 from app.services.llm import get_client
 from app.config import get_config
+from app.services.pending import create_pending
 
 MAX_STEPS = 5
+
+# 这些工具会改数据，必须先让用户确认
+WRITE_TOOLS = {"create_note"}
 
 AGENT_SYSTEM = """你是一个笔记助手。
 
@@ -23,6 +31,7 @@ AGENT_SYSTEM = """你是一个笔记助手。
 2. 只根据笔记内容回答，不要编造
 3. 工具返回错误时，换一种方式重试，或者如实告诉用户
 4. 回答要简洁，必要时标明是第几条笔记
+5. create_note 是写操作，只在用户明确要求「创建 / 记录 / 保存」时才用
 """
 
 TOOLS = [
@@ -63,6 +72,31 @@ TOOLS = [
             },
         },
     },
+    {
+        # ⭐ Day 22 新增：写工具
+        "type": "function",
+        "function": {
+            "name": "create_note",
+            "description": (
+                "创建一条新笔记。这是写操作，会真的存进数据库。"
+                "只有在用户明确要求「创建 / 记录 / 保存」时才使用。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "笔记标题",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "笔记正文，可以为空",
+                    },
+                },
+                "required": ["title"],
+            },
+        },
+    },
 ]
 
 
@@ -94,11 +128,28 @@ def execute_tool(db: Session, name: str, args: dict) -> dict:
             return {"error": f"笔记 {args.get('note_id')} 不存在"}
         return {"id": note.id, "title": note.title, "content": note.content}
 
+    if name == "create_note":
+        # ⭐ 即使用户点了确认，参数还是要校验 —— 因为参数是模型生成的
+        title = (args.get("title") or "").strip()
+        if not title:
+            return {"error": "标题不能为空"}
+
+        note = Note(title=title, content=args.get("content", ""))
+        db.add(note)
+        db.commit()
+        db.refresh(note)
+        return {"id": note.id, "title": note.title, "created": True}
+
     return {"error": f"未知工具：{name}"}
 
 
 def run_agent(db: Session, question: str) -> dict:
-    """跑一次完整的 Agent 循环。"""
+    """跑一次 Agent 循环。
+
+    返回两种状态：
+        {"status": "answered", "answer": ..., "steps": ..., "trace": ...}
+        {"status": "needs_confirm", "action_id": ..., "action": ..., "args": ...}
+    """
     client = get_client()
     model = get_config("LLM_MODEL", "deepseek-chat")
 
@@ -118,12 +169,17 @@ def run_agent(db: Session, question: str) -> dict:
 
         # ① 没有工具调用 → 模型要直接回答，结束
         if not msg.tool_calls:
-            return {"answer": msg.content or "", "steps": step + 1, "trace": trace}
+            return {
+                "status": "answered",
+                "answer": msg.content or "",
+                "steps": step + 1,
+                "trace": trace,
+            }
 
         # ② 把模型的"调用请求"追加进历史
         messages.append(msg)
 
-        # ③ 逐个执行工具
+        # ③ 逐个处理工具调用
         for call in msg.tool_calls:
             name = call.function.name
             try:
@@ -131,6 +187,19 @@ def run_agent(db: Session, question: str) -> dict:
             except json.JSONDecodeError:
                 args = {}
 
+            # ⭐ 写工具：不执行，立刻返回，等用户确认
+            if name in WRITE_TOOLS:
+                action_id = create_pending(name, args)
+                return {
+                    "status": "needs_confirm",
+                    "action_id": action_id,
+                    "action": name,
+                    "args": args,
+                    "steps": step + 1,
+                    "trace": trace,
+                }
+
+            # 只读工具：照常执行
             result = execute_tool(db, name, args)
             trace.append({"tool": name, "args": args, "result": result})
 
@@ -145,6 +214,7 @@ def run_agent(db: Session, question: str) -> dict:
 
     # 超过最大步数，强制收尾
     return {
+        "status": "max_steps",
         "answer": "（这个任务需要的步骤太多，已停止。请把问题拆小一点。）",
         "steps": MAX_STEPS,
         "trace": trace,
