@@ -18,11 +18,13 @@ from app.models import Note
 from app.services.llm import get_client
 from app.config import get_config
 from app.services.pending import create_pending
+from datetime import datetime, timezone
+from app.services.audit import log_action
 
 MAX_STEPS = 5
 
 # 这些工具会改数据，必须先让用户确认
-WRITE_TOOLS = {"create_note"}
+WRITE_TOOLS = {"create_note", "delete_note"}
 
 AGENT_SYSTEM = """你是一个笔记助手。
 
@@ -32,6 +34,10 @@ AGENT_SYSTEM = """你是一个笔记助手。
 3. 工具返回错误时，换一种方式重试，或者如实告诉用户
 4. 回答要简洁，必要时标明是第几条笔记
 5. create_note 是写操作，只在用户明确要求「创建 / 记录 / 保存」时才用
+6. 当用户要求删除笔记时，必须直接调用 delete_note 工具。
+   不要在回复里问「是否确认」——系统会自动弹出确认框让用户确认。
+   你的职责是「提出操作」，不是「征求同意」。
+7. 绝对不要声称"已经删除/已经创建"——除非你真的调用了对应的工具
 """
 
 TOOLS = [
@@ -97,6 +103,26 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_note",
+            "description": (
+                "删除一条笔记（软删除，之后可以在数据库里恢复）。"
+                "这是不可逆操作，只有在用户明确要求「删除」时才使用。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "note_id": {
+                        "type": "integer",
+                        "description": "要删除的笔记 id",
+                    }
+                },
+                "required": ["note_id"],
+            },
+        },
+    },
 ]
 
 
@@ -139,6 +165,18 @@ def execute_tool(db: Session, name: str, args: dict) -> dict:
         db.commit()
         db.refresh(note)
         return {"id": note.id, "title": note.title, "created": True}
+
+    if name == "delete_note":
+        note = db.get(Note, args.get("note_id"))
+        if note is None or note.deleted_at is not None:
+            return {"error": "笔记不存在或已删除"}
+
+        note.deleted_at = datetime.now(timezone.utc)
+        db.commit()
+
+        result = {"id": note.id, "deleted": True}
+        log_action(db, "delete_note", args, result)
+        return result
 
     return {"error": f"未知工具：{name}"}
 

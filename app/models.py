@@ -6,9 +6,11 @@
 
 from __future__ import annotations
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
+from datetime import datetime
+from sqlalchemy import DateTime
 
 from app.database import Base
 
@@ -21,7 +23,9 @@ class Note(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(100))
     content: Mapped[str] = mapped_column(Text, default="")
-
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 class Job(Base):
     """后台任务表。
@@ -69,3 +73,20 @@ class DocumentChunk(Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(512), nullable=True)
 
 
+class AuditLog(Base):
+    """审计日志：记录每一次写操作。
+
+    为什么要单独一张表？
+        1. 只增不改 —— 保证不可篡改
+        2. 和业务表分开 —— 删业务数据不影响日志
+    """
+
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    action: Mapped[str] = mapped_column(String(50))
+    args: Mapped[str] = mapped_column(Text)       # JSON 字符串
+    result: Mapped[str] = mapped_column(Text)     # JSON 字符串
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
